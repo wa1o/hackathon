@@ -5,8 +5,8 @@ import type { NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   // Rutas públicas
   const publicRoutes = ['/login', '/register', '/']
-  const isPublicRoute = publicRoutes.some(route => 
-    request.nextUrl.pathname.startsWith(route)
+  const isPublicRoute = publicRoutes.some(route =>
+    route === '/' ? request.nextUrl.pathname === '/' : request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(`${route}/`)
   )
   const authToken = request.cookies.get('auth_token')?.value
 

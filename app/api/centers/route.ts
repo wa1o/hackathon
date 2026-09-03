@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, institution, location, address, phone, schedule, contactPerson, managerId } = body
+    const { name, institution, location, address, phone, schedule, contactPerson, managerId, latitude: providedLatitude, longitude: providedLongitude } = body
 
     // Validaciones
     if (!name || !institution || !location) {
@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
     // Geocodificar dirección
     let latitude: number | null = null
     let longitude: number | null = null
-    if (address || location) {
+    if (typeof providedLatitude === 'number' && typeof providedLongitude === 'number') {
+      latitude = providedLatitude
+      longitude = providedLongitude
+    } else if (address || location) {
       const coords = await GeocodeService.geocodeAddress(address || location)
       if (coords) {
         latitude = coords.lat

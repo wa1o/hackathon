@@ -11,8 +11,12 @@ export function ResourceForm({ resource, endpoint, fields, title }: { resource: 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setSaving(true); setError('')
     try {
-      const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) })
+      const response = await fetch(endpoint, { credentials: 'same-origin', method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) })
       const result = await response.json()
+      if (response.status === 401) {
+        router.replace(`/login?next=${encodeURIComponent(resource)}`)
+        return
+      }
       if (!response.ok) throw new Error(result.error || 'No se pudo guardar')
       router.push(resource)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Error de guardado') } finally { setSaving(false) }

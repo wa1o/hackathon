@@ -19,6 +19,11 @@ export default function LoginPage() {
 
     try {
       const user = await login(email, password)
+      const next = new URLSearchParams(window.location.search).get('next')
+      if (next && next.startsWith('/')) {
+        router.replace(next)
+        return
+      }
       const role = user.role
       const destination = {
         COORDINADOR: '/dashboard/coordinator',
