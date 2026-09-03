@@ -1,9 +1,13 @@
 // services/qr.service.ts
 import { prisma } from '@/lib/prisma'
 import jwt from 'jsonwebtoken'
-import { hash } from 'bcryptjs'
+import { createHash } from 'crypto'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret-key'
+
+function tokenHash(token: string) {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 interface QRTokenPayload {
   campaignId: string
@@ -39,7 +43,7 @@ export class QRService {
       // 2. Verificar que no haya sido usado
       const campaign = await prisma.campaign.findFirst({
         where: {
-          qrTokenHash: await hash(token, 10)
+          qrTokenHash: tokenHash(token)
         }
       })
 
@@ -55,11 +59,10 @@ export class QRService {
 
   // Marcar token como usado
   static async markTokenAsUsed(campaignId: string, token: string) {
-    const tokenHash = await hash(token, 10)
     await prisma.campaign.update({
       where: { id: campaignId },
       data: {
-        qrTokenHash: tokenHash,
+        qrTokenHash: tokenHash(token),
         qrExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         qrCodeGenerated: true
       }

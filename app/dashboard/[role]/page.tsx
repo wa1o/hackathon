@@ -14,7 +14,7 @@ const roleLabels: Record<string, string> = {
 export default function DashboardPage() {
   const params = useParams<{ role: string }>()
   const router = useRouter()
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -27,7 +27,28 @@ export default function DashboardPage() {
           return
         }
         const result = await response.json()
-        if (active) setUser(result.data)
+        if (active) {
+          const expectedRole = {
+            coordinator: 'COORDINADOR',
+            center: 'ENCARGADO',
+            campaign: 'LIDER_CAMPANA',
+            institution: 'INSTITUCION',
+            volunteer: 'VOLUNTARIO'
+          }[params.role]
+          if (expectedRole && result.data.role !== expectedRole) {
+            const destinationByRole: Record<string, string> = {
+              COORDINADOR: 'coordinator',
+              ENCARGADO: 'center',
+              LIDER_CAMPANA: 'campaign',
+              INSTITUCION: 'institution',
+              VOLUNTARIO: 'volunteer'
+            }
+            const destination = destinationByRole[result.data.role] || 'volunteer'
+            router.replace(`/dashboard/${destination}`)
+          } else {
+            setUser(result.data)
+          }
+        }
       })
       .catch(() => router.replace('/login'))
       .finally(() => {

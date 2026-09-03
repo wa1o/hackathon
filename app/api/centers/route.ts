@@ -1,122 +1,142 @@
-// src/app/api/dashboard/center/route.ts
+// src/app/api/centers/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { AuthService } from '@/services/auth.service'
+import { GeocodeService } from '@/services/geocode.service'
 
+// GET - Listar centros (con filtros)
 export async function GET(request: NextRequest) {
   try {
     const user = await AuthService.getCurrentUser()
     if (!user) {
-      return NextResponse.json(
-        { error: 'No autenticado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     }
 
     const searchParams = request.nextUrl.searchParams
-    const centerId = searchParams.get('centerId')
+    const isActive = searchParams.get('isActive')
+    const campaignId = searchParams.get('campaignId')
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '10')
+    const skip = (page - 1) * limit
 
-    if (!centerId) {
-      return NextResponse.json(
-        { error: 'CenterId es requerido' },
-        { status: 400 }
-      )
+    // Construir filtros
+    const where: any = {}
+    if (isActive !== null) where.isActive = isActive === 'true'
+    
+    if (campaignId) {
+      where.campaigns = { some: { campaignId } }
     }
 
-    // Verificar que el usuario tenga acceso al centro
-    const center = await prisma.collectionCenter.findFirst({
-      where: {
-        id: centerId,
-        OR: [
-          { managerId: user.id },
-          { users: { some: { id: user.id } } }
-        ]
-      }
+    // Si es ENCARGADO, solo ve su centro
+    if (user.role === 'ENCARGADO' && user.managedCenter) {
+      where.id = user.managedCenter.id
+    }
+
+    const [centers, total] = await Promise.all([
+      prisma.collectionCenter.findMany({
+        where,
+        include: {
+          manager: {
+            select: { id: true, name: true, email: true }
+          },
+          campaigns: {
+            include: {
+              campaign: {
+                select: { id: true, name: true, isActive: true }
+              }
+            }
+          },
+          _count: {
+            select: { movements: true, users: true }
+          }
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.collectionCenter.count({ where })
+    ])
+
+    return NextResponse.json({
+      success: true,
+      data: centers,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     })
 
-    if (!center && user.role !== 'COORDINADOR') {
+  } catch (error: any) {
+    console.error('Error fetching centers:', error)
+    return NextResponse.json(
+      { error: error.message || 'Error al obtener centros' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Crear centro (solo coordinador)
+export async function POST(request: NextRequest) {
+  try {
+    const user = await AuthService.getCurrentUser()
+    if (!user || user.role !== 'COORDINADOR') {
       return NextResponse.json(
-        { error: 'No tienes acceso a este centro' },
+        { error: 'Solo el coordinador puede crear centros' },
         { status: 403 }
       )
     }
 
-    // 1. Obtener stock por artículo
-    const items = await prisma.item.findMany({
-      include: {
-        movements: {
-          where: { centerId }
-        }
-      }
-    })
+    const body = await request.json()
+    const { name, institution, location, address, phone, schedule, contactPerson, managerId } = body
 
-    const stockByItem = items.map(item => {
-      const stock = item.movements.reduce((total, movement) => {
-        if (movement.type === 'RECEPCION' || movement.type === 'TRANSFERENCIA_ENTRADA') {
-          return total + movement.quantity
-        } else if (movement.type === 'ENTREGA' || movement.type === 'MERMA' || movement.type === 'TRANSFERENCIA_SALIDA') {
-          return total - movement.quantity
-        } else if (movement.type === 'AJUSTE') {
-          return total + movement.quantity
-        }
-        return total
-      }, 0)
-
-      return {
-        id: item.id,
-        name: item.name,
-        category: item.category,
-        unit: item.unit,
-        stock,
-        umbralMinimo: item.umbralMinimo,
-        isLow: item.umbralMinimo !== null && stock < item.umbralMinimo
-      }
-    })
-
-    // 2. Movimientos recientes
-    const recentMovements = await prisma.movement.findMany({
-      where: { centerId },
-      include: {
-        item: true,
-        actor: {
-          select: { name: true, email: true }
-        }
-      },
-      take: 20,
-      orderBy: { date: 'desc' }
-    })
-
-    // 3. Totales
-    const totals = {
-      recepciones: await prisma.movement.count({
-        where: { centerId, type: 'RECEPCION' }
-      }),
-      entregas: await prisma.movement.count({
-        where: { centerId, type: 'ENTREGA' }
-      }),
-      mermas: await prisma.movement.count({
-        where: { centerId, type: 'MERMA' }
-      }),
-      transferencias: await prisma.movement.count({
-        where: { centerId, type: { in: ['TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_SALIDA'] } }
-      })
+    // Validaciones
+    if (!name || !institution || !location) {
+      return NextResponse.json(
+        { error: 'Nombre, institución y ubicación son requeridos' },
+        { status: 400 }
+      )
     }
+
+    // Geocodificar dirección
+    let latitude: number | null = null
+    let longitude: number | null = null
+    if (address || location) {
+      const coords = await GeocodeService.geocodeAddress(address || location)
+      if (coords) {
+        latitude = coords.lat
+        longitude = coords.lon
+      }
+    }
+
+    // Crear centro
+    const center = await prisma.collectionCenter.create({
+      data: {
+        name,
+        institution,
+        location,
+        address: address || location,
+        latitude,
+        longitude,
+        phone,
+        schedule,
+        contactPerson,
+        managerId: managerId || undefined,
+        isActive: true
+      },
+      include: {
+        manager: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    })
 
     return NextResponse.json({
       success: true,
-      data: {
-        center,
-        stockByItem,
-        recentMovements,
-        totals,
-        itemsAtRisk: stockByItem.filter(item => item.isLow)
-      }
+      data: center,
+      message: 'Centro creado exitosamente'
     })
 
   } catch (error: any) {
-    console.error('Error fetching center dashboard:', error)
+    console.error('Error creating center:', error)
     return NextResponse.json(
-      { error: error.message || 'Error al obtener dashboard del centro' },
+      { error: error.message || 'Error al crear centro' },
       { status: 500 }
     )
   }

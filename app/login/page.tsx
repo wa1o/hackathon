@@ -2,9 +2,11 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -16,18 +18,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      })
-      const result = await response.json()
-
-      if (!response.ok) {
-        throw new Error(result.error || 'No fue posible iniciar sesión')
-      }
-
-      const role = result.data?.user?.role
+      const user = await login(email, password)
+      const role = user.role
       const destination = {
         COORDINADOR: '/dashboard/coordinator',
         ENCARGADO: '/dashboard/center',
