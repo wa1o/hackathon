@@ -1,0 +1,279 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Role {
+  COORDINADOR
+  ENCARGADO
+  VOLUNTARIO
+  INSTITUCION
+  LIDER_CAMPANA
+}
+
+enum MovementType {
+  RECEPCION
+  ENTREGA
+  MERMA
+  TRANSFERENCIA_ENTRADA
+  TRANSFERENCIA_SALIDA
+  AJUSTE
+}
+
+enum Category {
+  NO_PERECEDERO
+  PERECEDERO
+  ROPA
+  LIMPIEZA
+  MEDICAMENTO
+  OTRO
+}
+
+enum Unit {
+  PIEZA
+  KG
+  L
+  BOLSA
+  CAJA
+}
+
+enum MermaStatus {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+// ============================================
+// TABLAS
+// ============================================
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(VOLUNTARIO)
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  supabaseUserId String?  @unique
+
+  // Relaciones
+  managedCenter         CollectionCenter?  @relation("Manager")
+  movements             Movement[]
+  centers               CollectionCenter[] @relation("UserCenters")
+  institutionDeliveries Delivery[]         @relation("InstitutionDeliveries")
+  campaignsLed          CampaignLeader[]
+  mermaRequests         MermaRequest[]     @relation("RequestedBy")
+  approvedMermaRequests MermaRequest[]     @relation("ApprovedBy")
+
+  @@map("users")
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // QR
+  qrTokenHash     String?   @unique // Hash del token usado
+  qrExpiresAt     DateTime? // Expiración del token
+  qrCodeGenerated Boolean   @default(false)
+
+  // Relaciones
+  centers   CampaignCenter[]
+  movements Movement[]
+  goals     CampaignGoal[]
+  leaders   CampaignLeader[]
+
+  @@map("campaigns")
+}
+
+model CollectionCenter {
+  id          String   @id @default(uuid())
+  name        String
+  institution String
+  location    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // Mapa
+  latitude      Float?
+  longitude     Float?
+  address       String?
+  phone         String?
+  schedule      String?
+  contactPerson String?
+
+  // Relaciones
+  managerId         String?          @unique
+  manager           User?            @relation("Manager", fields: [managerId], references: [id])
+  campaigns         CampaignCenter[]
+  movements         Movement[]       @relation("CenterMovements")
+  incomingTransfers Movement[]       @relation("TargetCenterMovements")
+  users             User[]           @relation("UserCenters")
+  deliveries        Delivery[]       @relation("OriginDeliveries")
+  mermaRequests     MermaRequest[]
+
+  @@map("collection_centers")
+}
+
+model Item {
+  id           String   @id @default(uuid())
+  name         String
+  category     Category @default(OTRO)
+  unit         Unit     @default(PIEZA)
+  umbralMinimo Float? // Para alertas de stock bajo
+  createdAt    DateTime @default(now())
+
+  // Relaciones
+  movements     Movement[]
+  goals         CampaignGoal[]
+  mermaRequests MermaRequest[]
+
+  @@map("items")
+}
+
+model CampaignCenter {
+  id         String   @id @default(uuid())
+  campaignId String
+  centerId   String
+  createdAt  DateTime @default(now())
+
+  // Relaciones
+  campaign Campaign         @relation(fields: [campaignId], references: [id])
+  center   CollectionCenter @relation(fields: [centerId], references: [id])
+
+  @@unique([campaignId, centerId])
+  @@map("campaign_centers")
+}
+
+model Movement {
+  id        String       @id @default(uuid())
+  type      MovementType
+  quantity  Float
+  date      DateTime     @default(now())
+  reason    String? // Obligatorio para MERMA y AJUSTE
+  donorName String? // Opcional para RECEPCION
+
+  // Relaciones
+  actorId    String
+  actor      User             @relation(fields: [actorId], references: [id])
+  campaignId String
+  campaign   Campaign         @relation(fields: [campaignId], references: [id])
+  centerId   String
+  center     CollectionCenter @relation("CenterMovements", fields: [centerId], references: [id])
+  itemId     String
+  item       Item             @relation(fields: [itemId], references: [id])
+
+  // Transferencias: centro destino (el origen ya es "center" arriba)
+  targetCenterId String?
+  targetCenter   CollectionCenter? @relation("TargetCenterMovements", fields: [targetCenterId], references: [id])
+
+  // Entrega asociada (Delivery es dueño de la FK movementId)
+  delivery Delivery?
+
+  // Merma asociada, si vino de una aprobación (MermaRequest es dueño de la FK)
+  mermaRequest MermaRequest?
+
+  @@index([centerId, itemId])
+  @@index([campaignId])
+  @@map("movements")
+}
+
+model CampaignGoal {
+  id              String   @id @default(uuid())
+  campaignId      String
+  itemId          String
+  targetQuantity  Float
+  currentQuantity Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relaciones
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  item     Item     @relation(fields: [itemId], references: [id])
+
+  @@unique([campaignId, itemId])
+  @@map("campaign_goals")
+}
+
+model Delivery {
+  id            String    @id @default(uuid())
+  status        String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED
+  deliveryDate  DateTime  @default(now())
+  confirmedDate DateTime?
+
+  // Relaciones
+  originCenterId String
+  originCenter   CollectionCenter @relation("OriginDeliveries", fields: [originCenterId], references: [id])
+  institutionId  String?
+  institution    User?            @relation("InstitutionDeliveries", fields: [institutionId], references: [id])
+  movementId     String           @unique
+  movement       Movement         @relation(fields: [movementId], references: [id])
+
+  @@map("deliveries")
+}
+
+model CampaignLeader {
+  id         String   @id @default(uuid())
+  campaignId String
+  leaderId   String
+  joinedAt   DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  // Relaciones
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  leader   User     @relation(fields: [leaderId], references: [id])
+
+  @@unique([campaignId, leaderId])
+  @@map("campaign_leaders")
+}
+
+model MermaRequest {
+  id        String      @id @default(uuid())
+  quantity  Float
+  reason    String
+  evidence  String? // URL de imagen opcional
+  status    MermaStatus @default(PENDIENTE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  // Relaciones
+  centerId      String
+  center        CollectionCenter @relation(fields: [centerId], references: [id])
+  itemId        String
+  item          Item             @relation(fields: [itemId], references: [id])
+  requestedById String
+  requestedBy   User             @relation("RequestedBy", fields: [requestedById], references: [id])
+  approvedById  String?
+  approvedBy    User?            @relation("ApprovedBy", fields: [approvedById], references: [id])
+  movementId    String?          @unique
+  movement      Movement?        @relation(fields: [movementId], references: [id])
+
+  @@index([status])
+  @@map("merma_requests")
+}
+
+model GeocodeCache {
+  id        String   @id @default(uuid())
+  address   String   @unique
+  latitude  Float
+  longitude Float
+  createdAt DateTime @default(now())
+  lastUsed  DateTime @default(now())
+
+  @@map("geocode_cache")
+}
