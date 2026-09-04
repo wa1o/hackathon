@@ -1,12 +1,14 @@
-// prisma.config.ts
-import { defineConfig } from 'prisma/config'
-import 'dotenv/config' // <--- Importante para leer el .env
+   // prisma.config.ts
+   import 'dotenv/config'
+   import { defineConfig, env } from 'prisma/config'
 
-export default defineConfig({
-  // Aquí defines la URL de tu base de datos, usando la variable de entorno
-  datasource: {
-    url: process.env.DATABASE_URL!,
-  },
-  // Otras configuraciones opcionales pueden ir aquí
-  // schema: './prisma/schema.prisma', // Por defecto ya busca aquí
-})
+   export default defineConfig({
+     schema: 'prisma/schema.prisma',
+     migrations: {
+       path: 'prisma/migrations',
+       seed: 'tsx prisma/seed.ts',
+     },
+     datasource: {
+       url: env('DATABASE_URL'),
+     },
+   })
