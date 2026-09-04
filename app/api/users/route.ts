@@ -30,13 +30,16 @@ export async function POST(request: NextRequest) {
     if (!body.name || !body.email || !body.password) {
       return NextResponse.json({ error: 'Nombre, email y contraseña son requeridos' }, { status: 400 })
     }
+    if (body.role !== 'ENCARGADO' && body.role !== 'VOLUNTARIO') {
+      return NextResponse.json({ error: 'Solo puedes registrar encargados o voluntarios de centro' }, { status: 400 })
+    }
 
     const user = await prisma.user.create({
       data: {
         name: body.name.trim(),
         email: body.email.trim().toLowerCase(),
         passwordHash: await hash(body.password, 10),
-        role: body.role || 'VOLUNTARIO'
+        role: body.role
       },
       select: { id: true, email: true, name: true, role: true, createdAt: true, updatedAt: true }
     })

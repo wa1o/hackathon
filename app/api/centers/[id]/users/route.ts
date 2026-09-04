@@ -38,6 +38,9 @@ export async function POST(
         { status: 404 }
       )
     }
+    if (targetUser.role !== 'ENCARGADO' && targetUser.role !== 'VOLUNTARIO') {
+      return NextResponse.json({ error: 'Solo se pueden asignar encargados o voluntarios' }, { status: 400 })
+    }
 
     // Asignar usuario al centro
     const center = await prisma.collectionCenter.update({

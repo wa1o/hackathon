@@ -8,6 +8,7 @@ export interface CurrentUser {
   email: string
   role: string
   managedCenter?: { id: string; name: string } | null
+  campaignsLed?: { campaignId: string }[]
 }
 
 interface AuthContextValue {

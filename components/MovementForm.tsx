@@ -17,12 +17,26 @@ export function MovementForm({ type }: { type: MovementType }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    Promise.all([fetch('/api/auth/me'), fetch('/api/campaigns?isActive=true'), fetch('/api/items'), fetch('/api/centers?isActive=true')]).then(async ([userRes, campaignRes, itemRes, centerRes]) => {
-      setUser((await userRes.json()).data)
-      setCampaigns((await campaignRes.json()).data || [])
-      setItems((await itemRes.json()).data || [])
-      setCenters((await centerRes.json()).data || [])
-    })
+    const load = async () => {
+      const responses = await Promise.all([
+        fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' }),
+        fetch('/api/campaigns?isActive=true', { credentials: 'same-origin', cache: 'no-store' }),
+        fetch('/api/items', { credentials: 'same-origin', cache: 'no-store' }),
+        fetch('/api/centers?isActive=true', { credentials: 'same-origin', cache: 'no-store' })
+      ])
+      const results = await Promise.all(responses.map(async (response) => {
+        const text = await response.text()
+        let result: any = {}
+        try { result = text ? JSON.parse(text) : {} } catch { throw new Error(`Respuesta inválida de ${response.url}`) }
+        if (!response.ok) throw new Error(result.error || `Error ${response.status} en ${response.url}`)
+        return result
+      }))
+      setUser(results[0].data)
+      setCampaigns(results[1].data || [])
+      setItems(results[2].data || [])
+      setCenters(results[3].data || [])
+    }
+    load().catch((reason) => setError(reason instanceof Error ? reason.message : 'No se pudieron cargar los catálogos'))
   }, [])
 
   const endpoint = `/api/movements/${type}`

@@ -100,8 +100,8 @@ export async function POST(request: NextRequest) {
     if (typeof providedLatitude === 'number' && typeof providedLongitude === 'number') {
       latitude = providedLatitude
       longitude = providedLongitude
-    } else if (address || location) {
-      const coords = await GeocodeService.geocodeAddress(address || location)
+    } else if (address || location || name) {
+      const coords = await GeocodeService.geocodeAddress([name, address || location].filter(Boolean).join(', '))
       if (coords) {
         latitude = coords.lat
         longitude = coords.lon

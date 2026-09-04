@@ -52,6 +52,12 @@ enum MermaStatus {
   RECHAZADA
 }
 
+enum CompanyRequestStatus {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
 // ============================================
 // TABLAS
 // ============================================
@@ -67,15 +73,34 @@ model User {
   supabaseUserId String?  @unique
 
   // Relaciones
-  managedCenter         CollectionCenter?  @relation("Manager")
-  movements             Movement[]
-  centers               CollectionCenter[] @relation("UserCenters")
-  institutionDeliveries Delivery[]         @relation("InstitutionDeliveries")
-  campaignsLed          CampaignLeader[]
-  mermaRequests         MermaRequest[]     @relation("RequestedBy")
-  approvedMermaRequests MermaRequest[]     @relation("ApprovedBy")
+  managedCenter           CollectionCenter?            @relation("Manager")
+  movements               Movement[]
+  centers                 CollectionCenter[]           @relation("UserCenters")
+  institutionDeliveries   Delivery[]                   @relation("InstitutionDeliveries")
+  campaignsLed            CampaignLeader[]
+  mermaRequests           MermaRequest[]               @relation("RequestedBy")
+  approvedMermaRequests   MermaRequest[]               @relation("ApprovedBy")
+  reviewedCompanyRequests CompanyRegistrationRequest[] @relation("CompanyRequestReviewer")
 
   @@map("users")
+}
+
+model CompanyRegistrationRequest {
+  id           String               @id @default(uuid())
+  companyName  String
+  contactName  String
+  email        String
+  phone        String?
+  message      String?
+  passwordHash String
+  status       CompanyRequestStatus @default(PENDIENTE)
+  createdAt    DateTime             @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewedBy   User?                @relation("CompanyRequestReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@map("company_registration_requests")
 }
 
 model Campaign {

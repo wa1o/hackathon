@@ -19,6 +19,11 @@ export function canApproveMerma(userRole: Role): boolean {
 
 export function canAccessCenter(user: { id: string; role: Role }, centerId: string): boolean {
   if (user.role === 'COORDINADOR') return true
-  // En el futuro, verificar que el usuario está asignado al centro
-  return true
+  return false
+}
+
+export function canOperateCenter(user: { id: string; role: Role; managedCenter?: { id: string } | null; centers?: { id: string }[] }, centerId: string): boolean {
+  if (user.role === 'COORDINADOR') return true
+  if (user.role === 'ENCARGADO') return user.managedCenter?.id === centerId
+  return user.centers?.some((center) => center.id === centerId) ?? false
 }

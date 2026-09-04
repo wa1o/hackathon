@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MermaApprovalService } from '@/services/merma-approval.service'
 import { AuthService } from '@/services/auth.service'
-import { canProposeMerma } from '@/lib/auth/roles'
+import { canProposeMerma, canOperateCenter } from '@/lib/auth/roles'
 
 export async function POST(request: NextRequest) {
     try {
@@ -23,6 +23,10 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json()
         const { centerId, itemId, quantity, reason, evidence } = body
+
+        if (!canOperateCenter(user, centerId)) {
+            return NextResponse.json({ error: 'Solo puedes operar tu centro asignado' }, { status: 403 })
+        }
 
         if (!centerId || !itemId || !quantity || !reason) {
             return NextResponse.json(

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { MovementService } from '@/services/movement.service'
 import { AuthService } from '@/services/auth.service'
-import { canManageMovements } from '@/lib/auth/roles'
+import { canManageMovements, canOperateCenter } from '@/lib/auth/roles'
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +24,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const { centerId, campaignId, itemId, quantity, donorName } = body
+
+    if (!canOperateCenter(user, centerId)) {
+      return NextResponse.json({ error: 'Solo puedes operar tu centro asignado' }, { status: 403 })
+    }
 
     // Validaciones
     if (!centerId || !campaignId || !itemId || !quantity) {

@@ -10,7 +10,6 @@ export default async function JoinCampaignPage({ params }: { params: Promise<{ t
 
   try {
     await QRService.joinCampaign(token, user.id)
-    redirect('/dashboard/campaign')
   } catch (error) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
@@ -21,4 +20,6 @@ export default async function JoinCampaignPage({ params }: { params: Promise<{ t
       </main>
     )
   }
+
+  redirect('/dashboard/campaign')
 }

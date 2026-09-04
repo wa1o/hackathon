@@ -23,7 +23,7 @@ export default function HomePage() {
             router.push('/dashboard/center')
             break
           case 'LIDER_CAMPANA':
-            router.push('/dashboard/campaign')
+            router.push(user.campaignsLed?.length ? '/dashboard/campaign' : '/campaign/register-qr')
             break
           case 'INSTITUCION':
             router.push('/dashboard/institution')

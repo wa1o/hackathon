@@ -30,7 +30,8 @@ export class AuthService {
       }
     })
 
-    return user
+    const { passwordHash: _passwordHash, ...publicUser } = user
+    return publicUser
   }
 
   static async login(email: string, password: string) {
@@ -38,7 +39,8 @@ export class AuthService {
       where: { email },
       include: {
         managedCenter: true,
-        centers: true
+        centers: true,
+        campaignsLed: { where: { isActive: true }, select: { campaignId: true } }
       }
     })
 
@@ -56,7 +58,8 @@ export class AuthService {
       maxAge: 60 * 60 * 24 * 7
     })
 
-    return { user, session: null }
+    const { passwordHash: _passwordHash, ...publicUser } = user
+    return { user: publicUser, session: null }
   }
 
   static async logout() {
@@ -83,10 +86,13 @@ export class AuthService {
       where: { id: session.sub },
       include: {
         managedCenter: true,
-        centers: true
+        centers: true,
+        campaignsLed: { where: { isActive: true }, select: { campaignId: true } }
       }
     })
 
-    return user
+    if (!user) return null
+    const { passwordHash: _passwordHash, ...publicUser } = user
+    return publicUser
   }
 }
